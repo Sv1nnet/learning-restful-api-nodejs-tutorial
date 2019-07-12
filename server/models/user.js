@@ -1,8 +1,10 @@
+/* eslint-disable func-names */
 /* eslint-disable no-underscore-dangle */
 const mongoose = require('mongoose');
 const validator = require('validator');
 const jwt = require('jsonwebtoken');
 const _ = require('lodash');
+const bcrypt = require('bcryptjs');
 
 const UserSchema = mongoose.Schema({
   email: {
@@ -71,6 +73,21 @@ UserSchema.statics.findByToken = function findByToken(token) {
     'tokens.access': 'auth',
   });
 };
+
+UserSchema.pre('save', function(next) {
+  const user = this;
+
+  if (user.isModified('password')) {
+    bcrypt.genSalt(10, (err, salt) => {
+      bcrypt.hash(user.password, salt, (err, hash) => {
+        user.password = hash;
+        next();
+      });
+    });
+  } else {
+    next();
+  }
+});
 
 const User = mongoose.model('User', UserSchema);
 
