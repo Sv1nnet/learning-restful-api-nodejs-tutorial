@@ -1,42 +1,45 @@
+/* eslint-disable no-underscore-dangle */
 const express = require('express');
 const _ = require('lodash');
 const { ObjectID } = require('mongodb');
 const { Todo } = require('../models/todo');
+const { authenticate } = require('../middleware/authenticate');
 
 const router = express.Router();
 
-router.post('/', (req, res) => {
+router.post('/', authenticate, (req, res) => {
   const todo = new Todo({
     text: req.body.text,
+    _creator: req.user._id,
   });
-
-  console.log('-'.repeat(50));
-  console.log(todo.text);
   todo.save().then((result) => {
     res.send(result);
   }).catch((err) => {
-    console.log('-'.repeat(50));
-    console.log('Error creating todo', err);
     res.status(400).send(err);
   });
 });
 
-router.get('/', (req, res) => {
-  Todo.find().then((todos) => {
+router.get('/', authenticate, (req, res) => {
+  Todo.find({
+    _creator: req.user._id,
+  }).then((todos) => {
     res.send({ todos });
   }).catch((err) => {
     res.status(400).send(err);
   });
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', authenticate, (req, res) => {
   const { id } = req.params;
 
   if (!ObjectID.isValid(id)) {
     return res.status(400).send();
   }
 
-  Todo.findById(id).then((todo) => {
+  Todo.findOne({
+    _id: id,
+    _creator: req.user._id,
+  }).then((todo) => {
     if (!todo) return res.status(404).send();
 
     res.status(200).send({ todo });
@@ -45,19 +48,22 @@ router.get('/:id', (req, res) => {
   });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authenticate, (req, res) => {
   const { id } = req.params;
 
   if (!ObjectID.isValid(id)) return res.status(400).send({ error: 'Somethins went wrong' });
 
-  Todo.findByIdAndRemove(id).then((todo) => {
+  Todo.findOneAndDelete({
+    _id: id,
+    _creator: req.user._id,
+  }).then((todo) => {
     if (!todo) return res.status(404).send();
 
     res.send({ todo });
   }).catch(() => res.status(400).send());
 });
 
-router.patch('/:id', (req, res) => {
+router.patch('/:id', authenticate, (req, res) => {
   const { id } = req.params;
   const body = _.pick(req.body, ['text', 'completed']);
 
@@ -70,8 +76,11 @@ router.patch('/:id', (req, res) => {
     body.completedAt = null;
   }
 
-  Todo.findByIdAndUpdate(
-    id,
+  Todo.findOneAndUpdate(
+    {
+      _id: id,
+      _creator: req.user._id,
+    },
     {
       $set: body,
     },
